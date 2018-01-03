@@ -11,11 +11,14 @@ from service_pb2 import StandardRequest, StreamRequest
 from service_pb2_grpc import TestServiceStub
 from server import create_server
 
+
 def asynctest(f):
     @functools.wraps(f)
     def _test(self):
         return self.loop.run_until_complete(f(self))
+
     return _test
+
 
 class Test(unittest.TestCase):
 
@@ -48,7 +51,7 @@ class Test(unittest.TestCase):
         self.assertEqual((await fut).message, 'test3')
         self.assertEqual(fut.is_active(), False)
         self.assertEqual(fut.done(), True)
-        
+
     @asynctest
     async def testCancel(self):
         fut = self.stub.DelayedMethod.future(StandardRequest(name='test1'))
@@ -100,6 +103,7 @@ class Test(unittest.TestCase):
             yield StandardRequest(name='test1')
             yield StandardRequest(name='test2')
             yield StandardRequest(name='test3')
+
         result = await self.stub.StreamInputMethod(test_input())
         self.assertEqual(result.count, 3)
         result, call = await self.stub.StreamInputMethod.with_call(test_input())
@@ -113,10 +117,12 @@ class Test(unittest.TestCase):
         self.assertEqual((await fut).count, 3)
         self.assertEqual(fut.is_active(), False)
         self.assertEqual(fut.done(), True)
+
         async def test_input2():
             yield StandardRequest(name='test1')
             yield StandardRequest(name='test2')
             raise ValueError('Testing raising exception from client side (A designed test case)')
+
         with self.assertRaises(aiogrpc.RpcError):
             result = await self.stub.StreamInputMethod(test_input2())
 
@@ -130,7 +136,7 @@ class Test(unittest.TestCase):
         self.assertIsInstance(fut.exception(), aiogrpc.RpcError)
         with self.assertRaises(aiogrpc.RpcError):
             await fut
-    
+
     @asynctest
     async def testStreamStream(self):
         async def test_input(q):
@@ -140,6 +146,7 @@ class Test(unittest.TestCase):
                     break
                 else:
                     yield r
+
         q = asyncio.Queue()
         result = self.stub.StreamStreamMethod(test_input(q))
         await q.put(StandardRequest(name='test1'))
@@ -170,29 +177,29 @@ class Test(unittest.TestCase):
         await q.put(None)
         with self.assertRaises(StopAsyncIteration):
             await result.__anext__()
-        
-    @asynctest
-    async def testBalancing(self):
-        s1 = create_server(['127.0.0.1:9902'])
-        s2 = create_server(['127.0.0.1:9903'])
-        self.channel = aiogrpc.insecure_channel('ipv4:///127.0.0.1:9902,127.0.0.1:9903', loop=self.loop)
-        self.stub = TestServiceStub(self.channel)
-        s1.start()
-        try:
-            result = await self.stub.NormalMethod(StandardRequest(name='test1'))
-            self.assertEqual(result.message, 'test1')
-        finally:
-            s1.stop(None)
-        s2.start()
-        try:
-            result = await self.stub.NormalMethod(StandardRequest(name='test1'))
-            self.assertEqual(result.message, 'test1')
-        finally:
-            s1.stop(None)
+
+    # @asynctest
+    # async def testBalancing(self):
+    #     s1 = create_server(['127.0.0.1:9902'])
+    #     s2 = create_server(['127.0.0.1:9903'])
+    #     self.channel = aiogrpc.insecure_channel('ipv4:///127.0.0.1:9902,127.0.0.1:9903', loop=self.loop)
+    #     self.stub = TestServiceStub(self.channel)
+    #     s1.start()
+    #     try:
+    #         result = await self.stub.NormalMethod(StandardRequest(name='test1'))
+    #         self.assertEqual(result.message, 'test1')
+    #     finally:
+    #         s1.stop(None)
+    #     s2.start()
+    #     try:
+    #         result = await self.stub.NormalMethod(StandardRequest(name='test1'))
+    #         self.assertEqual(result.message, 'test1')
+    #     finally:
+    #         s1.stop(None)
 
 
 if __name__ == "__main__":
-    #import sys;sys.argv = ['', 'Test.testName']
+    # import sys;sys.argv = ['', 'Test.testName']
     s = create_server(['127.0.0.1:9901'])
     s.start()
     try:
